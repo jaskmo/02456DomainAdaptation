@@ -10,6 +10,7 @@ import numpy as np
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 # ############################# Batch iterator ###############################
 # This is just a simple helper function iterating over training data in
@@ -20,7 +21,123 @@ import matplotlib.pyplot as plt
 # them to GPU at once for slightly improved performance. This would involve
 # several changes in the main program, though, and is not demonstrated here.
 
+def create_data_split(path, dataSet, valid_size, test_size):
+    ls = os.listdir(path)
+    cor_ls = []
+    lable_dic = {'4\n':'wake',
+                 '3\n':'REM',
+                 '2\n':'N1',
+                 '1\n':'N2',
+                 '0\n':'N3'}
     
+    for itm in ls:
+        if itm not in ['test','train','validation']:
+            cor_ls.append(itm)
+    
+    nrSub = len(cor_ls)
+
+    if dataSet == 'pys':
+        # Make sure that both rec. from a uneque set of patient is used in test and validation 
+        test_split = np.random.randint(0, nrSub, test_size)
+        valid_split = np.random.randint(0, nrSub, valid_size)
+        repTest = []
+        repValid = []    
+        for count in range(test_size):
+            S, _, _, _ = cor_ls[test_split[count]].split('_')
+            repTest.append(S)
+        for count in range(valid_size):
+            S, _, _, _ = cor_ls[valid_split[count]].split('_')
+            repValid.append(S)
+        while len(np.unique([repTest, repValid])) != test_size+valid_size:
+            test_split = np.random.randint(0, nrSub, test_size)
+            valid_split = np.random.randint(0, nrSub, valid_size)
+
+            repTest = []
+            repValid = []    
+            for count in range(test_size):
+                S, _, _, _ = cor_ls[test_split[count]].split('_')
+                repTest.append(S)
+            for count in range(valid_size):
+                S, _, _, _ = cor_ls[valid_split[count]].split('_')  
+                repValid.append(S)
+
+        test_split = []
+        valid_split = []
+        for count, rec in enumerate(cor_ls):
+            S, _, _, _ = rec.split('_')
+            if S in repTest:
+                test_split.append(count)
+        for count, rec in enumerate(cor_ls):
+            S, _, _, _, = rec.split('_')
+            if S in repValid:
+                valid_split.append(count)
+    else:
+        # random and unique test/validation split
+        test_split = np.random.randint(0, nrSub, test_size)
+        valid_split = np.random.randint(0, nrSub, valid_size)
+        while len(np.unique([test_split, valid_split])) != test_size+valid_size:
+            test_split = np.random.randint(0, nrSub, test_size)
+            valid_split = np.random.randint(0, nrSub, valid_size)
+    
+    # get train split
+    train_split = []
+    for val in np.arange(nrSub):
+        if val not in test_split and val not in valid_split:
+            train_split.append(val)
+    train_size = len(train_split)
+    print(train_split)
+    # Validation maigration
+    # for sub in cor_ls[valid_split]:
+    for itr in np.arange(len(valid_split)):
+        sub = cor_ls[valid_split[itr]]
+        with open(path + '/' + sub + '/labels.txt.new') as handle:
+            for fileNr, lable in enumerate(handle):
+                if lable == 'M\n':
+                    tmp = 1 
+                elif lable == '99\n':
+                    tmp = 1
+                else:
+                    os.rename(path + '/' + sub + '/img_' + str(fileNr+1) + '.png', path + 
+                              '/validation/' + lable_dic[lable] + '/' + sub + '__img_' + str(fileNr+1) + '.png')
+
+    # test maigration
+    for itr in np.arange(len(test_split)):
+        sub = cor_ls[test_split[itr]]
+        with open(path + '/' + sub + '/labels.txt.new') as handle:
+            for fileNr, lable in enumerate(handle):
+                if lable == 'M\n':
+                    tmp = 1
+                elif lable == '99\n':
+                    tmp = 1
+                else:
+                    os.rename(path + '/' + sub + '/img_' + str(fileNr+1) + '.png', path + 
+                              '/test/' + lable_dic[lable] + '/' + sub + '__img_' + str(fileNr+1) + '.png')
+
+    # train maigration
+    for itr in np.arange(train_size):
+        sub = cor_ls[train_split[itr]]
+        with open(path + '/' + sub + '/labels.txt.new') as handle:
+            for fileNr, lable in enumerate(handle):
+                if lable == 'M\n':
+                    tmp = 1
+                elif lable == '99\n':
+                    tmp = 1
+                else:
+                    os.rename(path + '/' + sub + '/img_' + str(fileNr+1) + '.png', path + 
+                              '/train/' + lable_dic[lable] + '/' + sub + '__img_' + str(fileNr+1) + '.png')
+    
+    
+def reverse_data_split(path):
+    split_folders = [path + 'test/', path + 'validation/', path + 'train/']
+    for sub_path in split_folders:
+        class_folders = os.listdir(sub_path)
+        for folder in class_folders:
+            loc = sub_path + folder + '/'
+            for img in os.listdir(loc):
+                old_folder, old_file = img.split('__')
+                os.rename(loc + img, path + '/' + old_folder + '/' + old_file)
+
+
 def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
     assert len(inputs) == len(targets)
     batchsize = int(batchsize)
