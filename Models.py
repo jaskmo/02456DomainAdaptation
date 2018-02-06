@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[ ]:
+# In[22]:
 
 
 from keras.models import Model
@@ -13,15 +13,14 @@ from keras.metrics import categorical_accuracy as acc
 from keras.applications.vgg16 import VGG16
 from keras.losses import categorical_crossentropy
 from extras.flip_gradient import flip_gradient
-from keras.backend import in_test_phase, learning_phase
+import keras.backend as K
 from numpy import floor_divide
-import tensorflow as tf
 #from ourUtils import 
 
 
 # ### lable modle without DA
 
-# In[ ]:
+# In[23]:
 
 
 def lable_model(l2_reg = 0.01, do_rate = 0, vgg_train = True):
@@ -61,12 +60,13 @@ def lable_model(l2_reg = 0.01, do_rate = 0, vgg_train = True):
 
 # ### DAnet
 
-# In[ ]:
+# In[20]:
 
 
-def DA_model(batch_size, l2_reg = 0.01, do_rate = 0, vgg_train = True):
-    #init
-    lam_slice = floor_divide(batch_size,2,dtype='int8')
+def DA_model(l2_reg = 0.01, do_rate = 0, vgg_train = True):
+    # init. the variable to controle the flipgradient layer
+    lamFunk = K.variable(0.0)
+    
     # Load the convolutional part of the VGG16 network 
     vgg16Conv = VGG16(weights='imagenet', include_top=False)
 
@@ -76,45 +76,49 @@ def DA_model(batch_size, l2_reg = 0.01, do_rate = 0, vgg_train = True):
     output_vggConv = vgg16Conv(vggInput)
     # pre Dence layer
     preDns = Flatten(name='preDa')(output_vggConv)
-    # Stack lable layers
+    # create the shared part as a model instance
+    sharedVGG16 = Model(inputs=vggInput, outputs=preDns)
+    
+    #Create lable predictive model
+    lpl_input = Input(shape=(224,224,3), name='lplInput')
+    # run lpl input through the shared part of the network
+    lpl_vgg_out = sharedVGG16(lpl_input)
+    
     lpl1 = Dense(2048, activation='relu', kernel_initializer='glorot_normal', 
-                 bias_initializer='glorot_normal', kernel_regularizer=l2(l=l2_reg), name='lpl1')(preDns) #(lplSlice)
+                 kernel_regularizer=l2(l=l2_reg), name='lpl1')(lpl_vgg_out)
     lpl1Do = Dropout(rate=do_rate, seed=42, name='lpl1Do')(lpl1)
     lpl2 = Dense(1024, activation='relu', kernel_initializer='glorot_normal', 
-                 bias_initializer='glorot_normal', kernel_regularizer=l2(l=l2_reg), name='lpl2')(lpl1Do)
+                 kernel_regularizer=l2(l=l2_reg), name='lpl2')(lpl1Do)
     lplOut = Dense(5, activation='softmax', kernel_initializer='glorot_normal', name='lplOut')(lpl2)
-    # Stack domain layers
-    flipGrad = Lambda(lambda x: flip_gradient(x,1),name='flipGrad')(preDns)
+    
+    #Create domain predictive model 
+    dpl_input = Input(shape=(224,224,3), name='dplInput')
+    # run dpl input through the shared part of the network
+    dpl_vgg_out = sharedVGG16(dpl_input)
+    #lambdalayer for the flip gradient
+    flipGrad = Lambda(lambda x: flip_gradient(x,lamFunk),name='flipGrad')(dpl_vgg_out)
     dpl1 = Dense(2048, activation='relu', kernel_initializer='glorot_normal', 
-                 bias_initializer='glorot_normal', kernel_regularizer=l2(l=l2_reg), name='dpl1')(flipGrad)
+                 kernel_regularizer=l2(l=l2_reg), name='dpl1')(flipGrad)
     dpl1Do = Dropout(rate=do_rate, seed=42, name='dpl1Do')(dpl1)
     dpl2 = Dense(1024, activation='relu', kernel_initializer='glorot_normal', 
-                 bias_initializer='glorot_normal', kernel_regularizer=l2(l=l2_reg), name='dpl2')(dpl1Do)
+                 kernel_regularizer=l2(l=l2_reg), name='dpl2')(dpl1Do)
     dplOut = Dense(2, activation='softmax', kernel_initializer='glorot_normal', name='dplOut')(dpl2)
     
-    lplOut._uses_learning_phase = True
-    
     #stitch modle together
-    vggConvSleep = Model() 
+    DAnetwork = Model(inputs=[lpl_input, dpl_input], outputs=[lplOut, dplOut]) 
     
     if not vgg_train:
-        for layer in vggConvSleep.layers[:2]:
+        for layer in DAnetwork.layers[:2]:
             layer.trainable = False
     
     # Optimizer
     optimize = Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
     
     # Compile the model
-    vggConvSleep.compile()
+    DAnetwork.compile(optimizer=optimize, loss='categorical_crossentropy', metrics=['categorical_accuracy'])
 
     # Get model summary
-    vggConvSleep.summary()
+    DAnetwork.summary()
     
-    return vggConvSleep
-
-
-# In[ ]:
-
-
-
+    return DAnetwork
 
