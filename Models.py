@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[3]:
+# In[ ]:
 
 
 from keras.models import Model
@@ -59,7 +59,9 @@ def lable_model(l2_reg = 0.01, do_rate = 0, vgg_train = True):
     return vggConvSleep
 
 
-# In[4]:
+# ### DAnet
+
+# In[ ]:
 
 
 def DA_model(batch_size, l2_reg = 0.01, do_rate = 0, vgg_train = True):
@@ -75,7 +77,6 @@ def DA_model(batch_size, l2_reg = 0.01, do_rate = 0, vgg_train = True):
     # pre Dence layer
     preDns = Flatten(name='preDa')(output_vggConv)
     # Stack lable layers
-    #lplSlice = Lambda(lambda x: in_test_phase(x, x[:lam_slice, :]), name='lplSplit')(preDns)
     lpl1 = Dense(2048, activation='relu', kernel_initializer='glorot_normal', 
                  bias_initializer='glorot_normal', kernel_regularizer=l2(l=l2_reg), name='lpl1')(preDns) #(lplSlice)
     lpl1Do = Dropout(rate=do_rate, seed=42, name='lpl1Do')(lpl1)
@@ -94,7 +95,7 @@ def DA_model(batch_size, l2_reg = 0.01, do_rate = 0, vgg_train = True):
     lplOut._uses_learning_phase = True
     
     #stitch modle together
-    vggConvSleep = Model(inputs=vggInput, outputs=[lplOut, dplOut])
+    vggConvSleep = Model() 
     
     if not vgg_train:
         for layer in vggConvSleep.layers[:2]:
@@ -103,21 +104,8 @@ def DA_model(batch_size, l2_reg = 0.01, do_rate = 0, vgg_train = True):
     # Optimizer
     optimize = Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
     
-    #Custom loss func.
-    def lableLoss(y_true, y_pred):
-        import ipdb; ipdb.set_trace()
-        half = 20
-        in_test_phase(tf.reduce_mean(categorical_crossentropy(y_true[half:,:], y_pred[half:,:])), 
-                      tf.reduce_mean(categorical_crossentropy(y_true[:half,:], y_pred[:half,:])))
-    
-    def LPM_loss(y_true, y_pred):
-        #with K.name_scope('lpmLoss'):
-            lossLpm = categorical_crossentropy(y_true[0:batch_size//2, :], y_pred[0:batch_size//2, :])
-            return lossLpm
-    
     # Compile the model
-    vggConvSleep.compile(loss={'lplOut':LPM_loss,'dplOut':'categorical_crossentropy'},
-                         optimizer=optimize, metrics=['categorical_accuracy'])
+    vggConvSleep.compile()
 
     # Get model summary
     vggConvSleep.summary()
