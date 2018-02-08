@@ -610,3 +610,17 @@ def plot_embedding(X, y, d, title=None):
     plt.xticks([]), plt.yticks([])
     if title is not None:
         plt.title(title)
+        
+def dissect_DAlpm(original_model):
+    
+    in_layer = original_model.layers[0].output
+    layer1 = original_model.layers[2](in_layer)
+    layer2 = original_model.layers[4](layer1)
+    layer3 = original_model.layers[6](layer2)
+    layer4 = original_model.layers[8](layer3)
+    layer5 = original_model.layers[10](layer4)
+    
+    
+    model_to_save = Model(inputs=in_layer,outputs=layer5)
+    
+    return model_to_save

@@ -103,4 +103,5 @@ ENV/
 # myStuff
 models/
 taperImages
+newTaperImg
 sandBox*.ipynb
