@@ -21,7 +21,73 @@ import os
 # them to GPU at once for slightly improved performance. This would involve
 # several changes in the main program, though, and is not demonstrated here.
 
-def create_data_split(path, dataSet, valid_size, test_size):
+def create_data_split(path, test_sub):
+    ls = os.listdir(path)
+    cor_ls = []
+    lable_dic = {'4\n':'wake',
+                  '3\n':'REM',
+                  '2\n':'N1',
+                  '1\n':'N2',
+                  '0\n':'N3'}
+    
+    # split data in test / train
+    test_split = []
+    train_val_split = []
+    sub_list = []
+    for f in ls:
+        if f not in ['test', 'train', 'validation']:
+            _, sub_nr, _, _, _, = f.split('_')
+            if int(sub_nr) in test_sub:
+                test_split.append(f)
+            else:
+                train_val_split.append(f)
+                sub_list.append(int(sub_nr))
+        
+    # rand split of train into train / val
+    sub_list = np.unique(sub_list)
+    np.random.shuffle(sub_list)
+    val_split_nr = sub_list[:len(test_sub)]
+    
+    val_split = []
+    train_split = []
+    for f in train_val_split:
+        _, sub_nr, _, _, _, = f.split('_')
+        if int(sub_nr) in val_split_nr:
+            val_split.append(f)
+        else:
+            train_split.append(f)
+    
+    maigrat_dic = {'train':train_split, 'validation':val_split, 'test':test_split}
+    
+    
+    # data maigration
+    for split in maigrat_dic.keys():
+        for sub in maigrat_dic[split]:
+            with open(path + sub + '/labels.txt.new') as handle:
+                for fileNr, lable in enumerate(handle):
+                    if lable == 'M\n':
+                        tmp = 1
+                    elif lable == '99\n': #FIX: AdHock recoding of NaNs == 99
+                        tmp = 1
+                    else:
+                        os.rename(path + '/' + sub + '/img_' + str(fileNr+1) + '.png', path + 
+                                  '/' + split + '/' + lable_dic[lable] + '/' + sub + '__img_' + str(fileNr+1) + '.png')
+    
+       
+    # downsample N2 to match nearest class
+    for split in maigrat_dic.keys(): 
+        cnt = []
+        for val in lable_dic.values():
+            if val != 'N2':
+                cnt.append(len(os.listdir(path + split +'/'+ val)))
+        ls_N2 = os.listdir(path + split + '/N2')
+        np.random.shuffle(ls_N2)
+        for img in ls_N2[cnt[np.argmax(cnt)]:]:
+            old_folder, old_file = img.split('__')
+            os.rename(path + split + '/N2/' + img, path + old_folder + '/' + old_file)
+
+
+def create_data_split_rand(path, dataSet, valid_size, test_size):
     ls = os.listdir(path)
     cor_ls = []
     lable_dic = {'4\n':'wake',
