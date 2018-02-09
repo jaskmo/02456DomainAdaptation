@@ -22,7 +22,7 @@ from numpy import floor_divide
 # In[ ]:
 
 
-def lable_model(l2_reg = 0.01, do_rate = 0, vgg_train = True):
+def lable_model(l2_reg = 0.01, do_rate = 0.5, vgg_train = True):
     # Load the convolutional part of the VGG16 network 
     vgg16Conv = VGG16(weights='imagenet', include_top=False)
 
@@ -62,7 +62,7 @@ def lable_model(l2_reg = 0.01, do_rate = 0, vgg_train = True):
 # In[ ]:
 
 
-def DA_model(lamFunk, l2_reg = 0.01, do_rate = 0, vgg_train = True):
+def DA_model(lamFunk, l2_reg = 0.01, do_rate = 0.5, vgg_train = True):
     
     # Load the convolutional part of the VGG16 network 
     vgg16Conv = VGG16(weights='imagenet', include_top=False)
