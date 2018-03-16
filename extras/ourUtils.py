@@ -8,6 +8,7 @@ Created on Tue Mar  8 16:27:26 2016
 import numpy as np
 
 import tensorflow as tf
+from keras.models import Model
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -36,7 +37,7 @@ def create_data_split(path, test_sub):
     sub_list = []
     for f in ls:
         if f not in ['test', 'train', 'validation']:
-            _, sub_nr, _, _, _, = f.split('_')
+            sub_nr = f.split('_')[1]
             if int(sub_nr) in test_sub:
                 test_split.append(f)
             else:
@@ -51,7 +52,7 @@ def create_data_split(path, test_sub):
     val_split = []
     train_split = []
     for f in train_val_split:
-        _, sub_nr, _, _, _, = f.split('_')
+        sub_nr = f.split('_')[1]
         if int(sub_nr) in val_split_nr:
             val_split.append(f)
         else:
@@ -681,12 +682,12 @@ def dissect_DAlpm(original_model):
     
     in_layer = original_model.layers[0].output
     layer1 = original_model.layers[2](in_layer)
-    layer2 = original_model.layers[4](layer1)
-    layer3 = original_model.layers[6](layer2)
-    layer4 = original_model.layers[8](layer3)
-    layer5 = original_model.layers[10](layer4)
+    layer2 = original_model.layers[3](layer1)
+    layer3 = original_model.layers[5](layer2)
+    layer4 = original_model.layers[7](layer3)
+    layer5 = original_model.layers[9](layer4)
+    layer6 = original_model.layers[11](layer5)
     
-    
-    model_to_save = Model(inputs=in_layer,outputs=layer5)
+    model_to_save = Model(inputs=in_layer,outputs=layer6)
     
     return model_to_save

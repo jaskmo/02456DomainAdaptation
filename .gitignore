@@ -105,3 +105,7 @@ models/
 taperImages
 newTaperImg
 sandBox*.ipynb
+nohup.out
+log.txt
+95pctTaper/
+oldTaperImages/

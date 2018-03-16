@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[ ]:
+# In[1]:
 
 
 from keras.models import Model
@@ -14,6 +14,7 @@ from keras.applications.vgg16 import VGG16
 from keras.losses import categorical_crossentropy
 from extras.flip_gradient import flip_gradient
 from numpy import floor_divide
+import numpy as np
 #from ourUtils import 
 
 
@@ -22,7 +23,7 @@ from numpy import floor_divide
 # In[ ]:
 
 
-def lable_model(l2_reg = 0.01, do_rate = 0.5, vgg_train = True):
+def lable_model(l2_reg = 0.01, do_rate = 0, vgg_train = True, nrUnits = [2048, 1024]):
     # Load the convolutional part of the VGG16 network 
     vgg16Conv = VGG16(weights='imagenet', include_top=False)
 
@@ -32,19 +33,21 @@ def lable_model(l2_reg = 0.01, do_rate = 0.5, vgg_train = True):
     output_vgg16Conv = vgg16Conv(vggInput)
     # Stack lable layers
     preDns = Flatten(name='preLp')(output_vgg16Conv)
-    dns1 = Dense(2048, activation='relu', kernel_initializer='glorot_normal', 
-                 bias_initializer='glorot_normal', kernel_regularizer=l2(l=l2_reg), name='lpl1')(preDns)
+    preDnsDo = Dropout(rate=do_rate, seed=42, name='preDnsDo')(preDns)
+    dns1 = Dense(nrUnits[0], activation='relu', kernel_initializer='glorot_normal', 
+                 bias_initializer='glorot_normal', kernel_regularizer=l2(l=l2_reg), name='lpl1')(preDnsDo)
     dns1Do = Dropout(rate=do_rate, seed=42, name='lpl1Do')(dns1)
-    dns2 = Dense(1024, activation='relu', kernel_initializer='glorot_normal', 
+    dns2 = Dense(nrUnits[1], activation='relu', kernel_initializer='glorot_normal', 
                  bias_initializer='glorot_normal', kernel_regularizer=l2(l=l2_reg), name='lpl2')(dns1Do)
     modelOut = Dense(5, activation='softmax', kernel_initializer='glorot_normal', name='lplOut')(dns2)
 
     vggConvSleep = Model(inputs=vggInput, outputs=modelOut)
 
     if not vgg_train:
-        for layer in vggConvSleep.layers[:2]:
+        for layer in vggConvSleep.layers[1].layers[:-2]:
             layer.trainable = False
-    
+        vggConvSleep.layers[1].layers[-2].kernel_regularizer = vggConvSleep.layers[-4].kernel_regularizer
+
     # Optimizer
     optimize = Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
 
@@ -59,10 +62,10 @@ def lable_model(l2_reg = 0.01, do_rate = 0.5, vgg_train = True):
 
 # ### DAnet
 
-# In[ ]:
+# In[2]:
 
 
-def DA_model(lamFunk, l2_reg = 0.01, do_rate = 0.5, vgg_train = True):
+def DA_model(lamFunk, l2_reg = 0.01, do_rate_dpl = 0, do_rate_lpl = 0, vgg_train = True, nrUnits = [2048, 1024]):
     
     # Load the convolutional part of the VGG16 network 
     vgg16Conv = VGG16(weights='imagenet', include_top=False)
@@ -80,11 +83,11 @@ def DA_model(lamFunk, l2_reg = 0.01, do_rate = 0.5, vgg_train = True):
     lpl_input = Input(shape=(224,224,3), name='lplInput')
     # run lpl input through the shared part of the network
     lpl_vgg_out = sharedVGG16(lpl_input)
-    
-    lpl1 = Dense(2048, activation='relu', kernel_initializer='glorot_normal', 
-                 kernel_regularizer=l2(l=l2_reg), name='lpl1')(lpl_vgg_out)
-    lpl1Do = Dropout(rate=do_rate, seed=42, name='lpl1Do')(lpl1)
-    lpl2 = Dense(1024, activation='relu', kernel_initializer='glorot_normal', 
+    lpl_vgg_outDo = Dropout(rate=do_rate_lpl, seed=42, name='lpl_vgg_outDo')(lpl_vgg_out)
+    lpl1 = Dense(nrUnits[0], activation='relu', kernel_initializer='glorot_normal', 
+                 kernel_regularizer=l2(l=l2_reg), name='lpl1')(lpl_vgg_outDo)
+    lpl1Do = Dropout(rate=do_rate_lpl, seed=42, name='lpl1Do')(lpl1)
+    lpl2 = Dense(nrUnits[1], activation='relu', kernel_initializer='glorot_normal', 
                  kernel_regularizer=l2(l=l2_reg), name='lpl2')(lpl1Do)
     lplOut = Dense(5, activation='softmax', kernel_initializer='glorot_normal', name='lplOut')(lpl2)
     
@@ -94,10 +97,10 @@ def DA_model(lamFunk, l2_reg = 0.01, do_rate = 0.5, vgg_train = True):
     dpl_vgg_out = sharedVGG16(dpl_input)
     #lambdalayer for the flip gradient
     flipGrad = Lambda(lambda x: flip_gradient(x,lamFunk),name='flipGrad')(dpl_vgg_out)
-    dpl1 = Dense(2048, activation='relu', kernel_initializer='glorot_normal', 
+    dpl1 = Dense(nrUnits[0], activation='relu', kernel_initializer='glorot_normal', 
                  kernel_regularizer=l2(l=l2_reg), name='dpl1')(flipGrad)
-    dpl1Do = Dropout(rate=do_rate, seed=42, name='dpl1Do')(dpl1)
-    dpl2 = Dense(1024, activation='relu', kernel_initializer='glorot_normal', 
+    dpl1Do = Dropout(rate=do_rate_dpl, seed=42, name='dpl1Do')(dpl1)
+    dpl2 = Dense(nrUnits[1], activation='relu', kernel_initializer='glorot_normal', 
                  kernel_regularizer=l2(l=l2_reg), name='dpl2')(dpl1Do)
     dplOut = Dense(2, activation='softmax', kernel_initializer='glorot_normal', name='dplOut')(dpl2)
     
@@ -105,8 +108,9 @@ def DA_model(lamFunk, l2_reg = 0.01, do_rate = 0.5, vgg_train = True):
     DAnetwork = Model(inputs=[lpl_input, dpl_input], outputs=[lplOut, dplOut]) 
     
     if not vgg_train:
-        for layer in DAnetwork.layers[:2]:
+        for layer in DAnetwork.layers[2].layers[1].layers[:-2]:
             layer.trainable = False
+        DAnetwork.layers[2].layers[1].layers[-2].kernel_regularizer = DAnetwork.layers[-4].kernel_regularizer    
     
     # Optimizer
     optimize = Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
