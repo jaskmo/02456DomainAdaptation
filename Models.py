@@ -1,11 +1,12 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[2]:
 
 
 from keras.models import Model
-from keras.layers import Dense, Dropout, Flatten, Lambda, Input
+from keras.layers import Dense, Dropout, Flatten, Lambda, Input, Activation
+from keras.layers.normalization import BatchNormalization
 from keras.regularizers import l2
 from keras.callbacks import EarlyStopping, CSVLogger, ModelCheckpoint
 from keras.optimizers import Adam
@@ -33,13 +34,20 @@ def lable_model(l2_reg = 0.01, do_rate = 0, vgg_train = True, nrUnits = [2048, 1
     output_vgg16Conv = vgg16Conv(vggInput)
     # Stack lable layers
     preDns = Flatten(name='preLp')(output_vgg16Conv)
-    preDnsDo = Dropout(rate=do_rate, seed=42, name='preDnsDo')(preDns)
-    dns1 = Dense(nrUnits[0], activation='relu', kernel_initializer='glorot_normal', 
+    preDnsBN = BatchNormalization()(preDns)
+    preDnsDo = Dropout(rate=do_rate, seed=42, name='preDnsDo')(preDnsBN)
+    #dns1 = Dense(nrUnits[0], activation='relu', kernel_initializer='glorot_normal', 
+    #             bias_initializer='glorot_normal', kernel_regularizer=l2(l=l2_reg), name='lpl1')(preDnsDo)
+    dns1 = Dense(nrUnits[0], kernel_initializer='glorot_normal', 
                  bias_initializer='glorot_normal', kernel_regularizer=l2(l=l2_reg), name='lpl1')(preDnsDo)
-    dns1Do = Dropout(rate=do_rate, seed=42, name='lpl1Do')(dns1)
-    dns2 = Dense(nrUnits[1], activation='relu', kernel_initializer='glorot_normal', 
+    dns1BN = BatchNormalization()(dns1)
+    dns1ACT = Activation('relu')(dns1BN)
+    dns1Do = Dropout(rate=do_rate, seed=42, name='lpl1Do')(dns1ACT)
+    dns2 = Dense(nrUnits[1], kernel_initializer='glorot_normal', 
                  bias_initializer='glorot_normal', kernel_regularizer=l2(l=l2_reg), name='lpl2')(dns1Do)
-    modelOut = Dense(5, activation='softmax', kernel_initializer='glorot_normal', name='lplOut')(dns2)
+    dns2BN = BatchNormalization()(dns2)
+    dns2ACT = Activation('relu')(dns2BN)
+    modelOut = Dense(5, activation='softmax', kernel_initializer='glorot_normal', name='lplOut')(dns2ACT)
 
     vggConvSleep = Model(inputs=vggInput, outputs=modelOut)
 
@@ -83,13 +91,18 @@ def DA_model(lamFunk, l2_reg = 0.01, do_rate_dpl = 0, do_rate_lpl = 0, vgg_train
     lpl_input = Input(shape=(224,224,3), name='lplInput')
     # run lpl input through the shared part of the network
     lpl_vgg_out = sharedVGG16(lpl_input)
-    lpl_vgg_outDo = Dropout(rate=do_rate_lpl, seed=42, name='lpl_vgg_outDo')(lpl_vgg_out)
-    lpl1 = Dense(nrUnits[0], activation='relu', kernel_initializer='glorot_normal', 
+    lpl_vgg_out_BN = BatchNormalization()(lpl_vgg_out)
+    lpl_vgg_outDo = Dropout(rate=do_rate_lpl, seed=42, name='lpl_vgg_outDo')(lpl_vgg_out_BN)
+    lpl1 = Dense(nrUnits[0], kernel_initializer='glorot_normal', 
                  kernel_regularizer=l2(l=l2_reg), name='lpl1')(lpl_vgg_outDo)
-    lpl1Do = Dropout(rate=do_rate_lpl, seed=42, name='lpl1Do')(lpl1)
-    lpl2 = Dense(nrUnits[1], activation='relu', kernel_initializer='glorot_normal', 
+    lpl1BN = BatchNormalization()(lpl1)
+    lpl1ACT = Activation('relu')(lpl1BN)
+    lpl1Do = Dropout(rate=do_rate_lpl, seed=42, name='lpl1Do')(lpl1ACT)
+    lpl2 = Dense(nrUnits[1], kernel_initializer='glorot_normal', 
                  kernel_regularizer=l2(l=l2_reg), name='lpl2')(lpl1Do)
-    lplOut = Dense(5, activation='softmax', kernel_initializer='glorot_normal', name='lplOut')(lpl2)
+    lpl2BN = BatchNormalization()(lpl2)
+    lpl2ACT = Activation('relu')(lpl2BN)
+    lplOut = Dense(5, activation='softmax', kernel_initializer='glorot_normal', name='lplOut')(lpl2ACT)
     
     #Create domain predictive model 
     dpl_input = Input(shape=(224,224,3), name='dplInput')
@@ -108,9 +121,9 @@ def DA_model(lamFunk, l2_reg = 0.01, do_rate_dpl = 0, do_rate_lpl = 0, vgg_train
     DAnetwork = Model(inputs=[lpl_input, dpl_input], outputs=[lplOut, dplOut]) 
     
     if not vgg_train:
-        for layer in DAnetwork.layers[2].layers[1].layers[:-2]:
+        for layer in DAnetwork.layers[1].layers[1].layers[:-2]:
             layer.trainable = False
-        DAnetwork.layers[2].layers[1].layers[-2].kernel_regularizer = DAnetwork.layers[-4].kernel_regularizer    
+        DAnetwork.layers[1].layers[1].layers[-2].kernel_regularizer = DAnetwork.layers[-8].kernel_regularizer    
     
     # Optimizer
     optimize = Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)

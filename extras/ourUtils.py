@@ -680,14 +680,27 @@ def plot_embedding(X, y, d, title=None):
         
 def dissect_DAlpm(original_model):
     
+#     in_layer = original_model.layers[0].output
+#     layer1 = original_model.layers[2](in_layer)
+#     layer2 = original_model.layers[3](layer1)
+#     layer3 = original_model.layers[5](layer2)
+#     layer4 = original_model.layers[7](layer3)
+#     layer5 = original_model.layers[9](layer4)
+#     layer6 = original_model.layers[11](layer5)
+
     in_layer = original_model.layers[0].output
-    layer1 = original_model.layers[2](in_layer)
-    layer2 = original_model.layers[3](layer1)
-    layer3 = original_model.layers[5](layer2)
-    layer4 = original_model.layers[7](layer3)
-    layer5 = original_model.layers[9](layer4)
-    layer6 = original_model.layers[11](layer5)
+    layer1 = original_model.layers[1](in_layer)
+    layer2 = original_model.layers[2](layer1)
+    layer3 = original_model.layers[3](layer2)
+    layer4 = original_model.layers[4](layer3)
+    layer5 = original_model.layers[5](layer4)
+    layer6 = original_model.layers[7](layer5)
+    layer7 = original_model.layers[8](layer6)
+    layer8 = original_model.layers[10](layer7)
+    layer9 = original_model.layers[12](layer8)
+    layer10 = original_model.layers[14](layer9)
+    layer11 = original_model.layers[16](layer10)
     
-    model_to_save = Model(inputs=in_layer,outputs=layer6)
+    model_to_save = Model(inputs=in_layer,outputs=layer11)
     
     return model_to_save
